@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
     val journalFilename = arguments["journal-file"] ?: "/tmp/scratch.yaml"
     val file = File(journalFilename).also { file ->
 //        file.delete()
-        file.exists() && file.createNewFile()
+        file.exists() || file.createNewFile()
         require(file.isFile && file.canRead() && file.canWrite()) {
             "Inaccessible transaction journal file: ${file.absolutePath}"
         }
