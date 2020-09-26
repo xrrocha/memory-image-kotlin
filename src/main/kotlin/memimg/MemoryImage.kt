@@ -1,71 +1,50 @@
 package memimg
 
-import arrow.core.Either
-import arrow.core.Left
-import arrow.core.Right
-import arrow.core.flatMap
-import arrow.core.getOrHandle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 
-class MemoryImage<S>(private val storage: Storage, private val emptySystem: () -> Either<Throwable, S>) {
+class MemoryImage<S>(private val storage: Storage, emptySystem: () -> S) {
 
     companion object {
-        val logger: Logger = LoggerFactory.getLogger(this::class.java)
+        private val logger = KotlinLogging.logger {}
     }
 
-    private fun <T> handleFailure(t: Throwable): T {
-        // TODO Add error handling and resumption
-        logger.error("Error ${t::class.java.simpleName} instantiating system: ${t.message ?: t.toString()}", t)
-        throw t
-    }
-
-    // TODO Add [blocking?] system checkpoints
-    private val system: S = emptySystem().getOrHandle(::handleFailure)
+    private val system: S = emptySystem()
 
     init {
-
-        generateSequence {
-            @Suppress("unchecked_cast")
-            storage.read()
-                    .map { it as Transaction<S, *>? }
-                    .flatMap { it?.executeOn(system) ?: Right(null) }
+        storage.readTransactions<S>().forEach { transaction ->
+            transaction.executeOn(system)
         }
-                .dropWhile { it is Either.Right && it.b != null }
-                .first()
-                .getOrHandle(this::handleFailure)
     }
 
-    fun <T> executeTransaction(transaction: Transaction<S, T>): Either<Throwable, T> =
+    // TODO Implement transactions for taking system snapshots for faster recovery
+    fun <T> executeTransaction(transaction: Transaction<S, T>): Result<T> =
             synchronized(this) {
-                // if (transaction is Validatable<*>) {
-                //     @Suppress("unchecked_cast")
-                //     (transaction as Validatable<S>).validate(system)
-                // }
-                transaction
-                        .executeOn(system)
-                        .map { result ->
-                            storage.write(transaction).map { result }
-                        }
-                        .getOrHandle(this::handleFailure)
+                try {
+                    val result = transaction.executeOn(system)
+                    storage.write(transaction)
+                    Result.success(result)
+                } catch (throwable: Throwable) {
+                    Result.failure(throwable)
+                }
             }
 
     // TODO: How to ensure a query doesn't mutate state?
-    // TODO: Can a query to see inconsistent results?
-    fun <T> executeQuery(query: Command<S, T>): Either<Throwable, T> =
+    // TODO: How can a query to see inconsistent results?
+    fun <T> executeQuery(query: Command<S, T>): Result<T> =
             runBlocking {
-                lateinit var result: Either<Throwable, T>
+                var result: Result<T>? = null
                 val job = launch {
-                    result = try {
-                        query.executeOn(system)
-                    } catch (throwable: Throwable) {
-                        Left(throwable)
-                    }
+                    result =
+                            try {
+                                Result.success(query.executeOn(system))
+                            } catch (throwable: Throwable) {
+                                Result.failure(throwable)
+                            }
                 }
                 job.join()
-                result
+                result!!
             }
 }
 
