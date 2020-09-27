@@ -20,6 +20,7 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.11.2")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.11.2")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.11.2")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.11.2")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.0.0-RC2")
 

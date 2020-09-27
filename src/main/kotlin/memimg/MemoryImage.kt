@@ -2,9 +2,10 @@ package memimg
 
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import memimg.journal.Journal
 import mu.KotlinLogging
 
-class MemoryImage<S>(private val storage: Storage, emptySystem: () -> S) {
+class MemoryImage<S>(private val journal: Journal<S>, emptySystem: () -> S) {
 
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -13,7 +14,7 @@ class MemoryImage<S>(private val storage: Storage, emptySystem: () -> S) {
     private val system: S = emptySystem()
 
     init {
-        storage.readTransactions<S>().forEach { transaction ->
+        journal.readTransactions().forEach { transaction ->
             transaction.executeOn(system)
         }
     }
@@ -23,7 +24,7 @@ class MemoryImage<S>(private val storage: Storage, emptySystem: () -> S) {
             synchronized(this) {
                 try {
                     val result = transaction.executeOn(system)
-                    storage.write(transaction)
+                    journal.writeTransaction(transaction)
                     Result.success(result)
                 } catch (throwable: Throwable) {
                     Result.failure(throwable)

@@ -1,5 +1,6 @@
 package memimg
 
+import memimg.journal.JacksonYamlFileJournal
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -24,7 +25,7 @@ fun main(args: Array<String>) {
                     }
                     .toMap()
 
-    val journalFilename = arguments["journal-file"] ?: "/tmp/scratch.yaml"
+    val journalFilename = arguments["journal-file"] ?: "scratch.yaml"
     val file = File(journalFilename).also { file ->
         file.exists() || file.createNewFile()
         require(file.isFile && file.canRead() && file.canWrite()) {
@@ -32,7 +33,8 @@ fun main(args: Array<String>) {
         }
     }
 
-    val memoryImage: MemoryImage<MutableMap<String, SoftwareProduct>> = MemoryImage(FileYamlStorage(file), ::mutableMapOf)
+    val memoryImage: MemoryImage<MutableMap<String, SoftwareProduct>> =
+            MemoryImage(JacksonYamlFileJournal(file), ::mutableMapOf)
 
     listOf(
             RemoveSoftwareProducts(setOf("snakeyml", "snakeyaml", "arrow", "yamltag", "jvmscripter")),
