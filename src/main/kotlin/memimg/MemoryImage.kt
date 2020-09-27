@@ -1,5 +1,8 @@
 package memimg
 
+import arrow.core.Either
+import arrow.core.Right
+import arrow.core.computations.either
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import memimg.journal.Journal
@@ -14,35 +17,36 @@ class MemoryImage<S>(private val journal: Journal<S>, emptySystem: () -> S) {
     private val system: S = emptySystem()
 
     init {
-        journal.readTransactions().forEach { transaction ->
+        logger.info("Reading transactions")
+        val transactionCount = journal.readTransactions().asSequence().fold(0) { index, transaction ->
             transaction.executeOn(system)
+            index + 1
         }
+        logger.info("Applied $transactionCount transactions")
     }
 
     // TODO Implement transactions for taking system snapshots for faster recovery
-    fun <T> executeTransaction(transaction: Transaction<S, T>): Result<T> =
+    fun <T> executeTransaction(transaction: Transaction<S, T>): Either<Throwable, T> =
             synchronized(this) {
-                try {
-                    val result = transaction.executeOn(system)
-                    journal.writeTransaction(transaction)
-                    Result.success(result)
-                } catch (throwable: Throwable) {
-                    Result.failure(throwable)
+                runBlocking {
+                    either {
+                        // TODO Restrict transactions to only use whitelisted classes / distrust!
+                        val result = !Right(transaction.executeOn(system))
+                        !Right(journal.writeTransaction(transaction))
+                        result
+                    }
                 }
             }
 
-    // TODO: How to ensure a query doesn't mutate state?
+    // TODO: How can queries be disallowed from mutating state state?
     // TODO: How can a query to see inconsistent results?
-    fun <T> executeQuery(query: Command<S, T>): Result<T> =
+    fun <T> executeQuery(query: Command<S, T>): Either<Throwable, T> =
             runBlocking {
-                var result: Result<T>? = null
+                var result: Either<Throwable, T>? = null
                 val job = launch {
-                    result =
-                            try {
-                                Result.success(query.executeOn(system))
-                            } catch (throwable: Throwable) {
-                                Result.failure(throwable)
-                            }
+                    result = either {
+                        !Right(query.executeOn(system))
+                    }
                 }
                 job.join()
                 result!!

@@ -50,7 +50,7 @@ fun main(args: Array<String>) {
                         .map {
                             logger.info("Software product resulting from ${transaction::class.java.simpleName}: $it")
                         }
-                        .onFailure {
+                        .mapLeft {
                             logger.warn("Error: ${it.message ?: it.toString()}")
                         }
             }

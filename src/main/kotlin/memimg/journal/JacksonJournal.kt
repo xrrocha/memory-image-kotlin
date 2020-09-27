@@ -1,27 +1,21 @@
 package memimg.journal
 
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.MapperFeature
+import com.fasterxml.jackson.databind.MappingIterator
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.jsontype.DefaultBaseTypeLimitingValidator
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import memimg.Transaction
+import memimg.util.PropertyHolder
 import mu.KotlinLogging
 import java.io.File
 import java.io.FileWriter
-import java.io.PrintWriter
 import java.io.Reader
 import java.io.Writer
 import java.nio.charset.StandardCharsets
-import java.util.*
-import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY
-import com.fasterxml.jackson.annotation.PropertyAccessor.FIELD
-import com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES
-import com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 
 interface JacksonJournal<S> : Journal<S> {
 
@@ -35,33 +29,42 @@ interface IOJacksonJournal<S> : Journal<S>, IOJournal<S>, JacksonJournal<S> {
     }
 
     override fun readTransactions(): Iterator<Transaction<S, *>> {
-        logger.info { "Reading transactions" }
         val parser = mapper.createParser(reader)
+
         @Suppress("UNCHECKED_CAST")
-        return mapper.readValues(parser, Transaction::class.java) as Iterator<Transaction<S, *>>
+        return mapper.readValues(parser, Transaction::class.java) as MappingIterator<Transaction<S, *>>
     }
 
     override fun writeTransaction(transaction: Transaction<S, *>) {
-        logger.debug { "Writing transaction ${transaction::class.java}" }
+        logger.debug { "Writing transaction ${transaction::class.java.canonicalName}" }
         val serializedTransaction = mapper.writeValueAsString(transaction).trim() + "\n"
         writer.write(serializedTransaction)
         writer.flush()
     }
 }
 
-abstract class FileJournal<S>(file: File) : Journal<S>, IOJournal<S> {
+interface FileJournal<S> : Journal<S>, IOJournal<S> {
 
-    override val reader: Reader by lazy {
-        file.reader(StandardCharsets.UTF_8)
+    companion object {
+        private val logger = KotlinLogging.logger {}
     }
 
-    override val writer: Writer by lazy {
-        val fileWriter = FileWriter(file, StandardCharsets.UTF_8, true)
-        PrintWriter(fileWriter, true)
-    }
+    val file: File
+
+    override val reader: Reader
+        get() = PropertyHolder.get(this, "reader") {
+            logger.debug("Creating reader")
+            file.reader(StandardCharsets.UTF_8)
+        }
+
+    override val writer: Writer
+        get() = PropertyHolder.get(this, "writer") {
+            logger.debug("Creating writer")
+            FileWriter(file, StandardCharsets.UTF_8, true)
+        }
 }
 
-class JacksonJsonFileJournal<S>(file: File) : FileJournal<S>(file), IOJacksonJournal<S> {
+class JacksonJsonFileJournal<S>(override val file: File) : FileJournal<S>, IOJacksonJournal<S> {
 
     override val mapper: ObjectMapper by lazy {
         ObjectMapper()
@@ -77,7 +80,7 @@ class JacksonJsonFileJournal<S>(file: File) : FileJournal<S>(file), IOJacksonJou
     }
 }
 
-class JacksonYamlFileJournal<S>(file: File) : FileJournal<S>(file), IOJacksonJournal<S> {
+class JacksonYamlFileJournal<S>(override val file: File) : FileJournal<S>, IOJacksonJournal<S> {
 
     override val mapper: ObjectMapper by lazy {
         ObjectMapper(

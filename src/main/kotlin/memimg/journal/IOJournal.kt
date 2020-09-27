@@ -17,6 +17,7 @@ interface IOJournal<S> : Journal<S>, AutoCloseable {
 
         try {
             if (reader.ready()) {
+                logger.debug("Closing reader")
                 reader.close()
             }
         } catch (e: Exception) {
@@ -24,6 +25,8 @@ interface IOJournal<S> : Journal<S>, AutoCloseable {
         }
 
         try {
+            logger.debug("Closing writer")
+            writer.flush()
             writer.close()
         } catch (e: Exception) {
             logger.warn("Error ${e::class.java.simpleName} closing journal writer: ${e.message ?: e.toString()}")
