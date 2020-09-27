@@ -4,7 +4,7 @@ object PropertyHolder {
 
     private val byOwnerMap: MutableMap<Any, MutableMap<String, Any>> = mutableMapOf()
 
-    fun <T> get(owner: Any, name: String, source: () -> Any): T {
+    operator fun <T> invoke(owner: Any, name: String, source: () -> Any): T {
         if (!byOwnerMap.containsKey(owner)) {
             byOwnerMap[owner] = mutableMapOf()
         }

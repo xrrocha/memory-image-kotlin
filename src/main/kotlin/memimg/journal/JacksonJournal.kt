@@ -52,13 +52,13 @@ interface FileJournal<S> : Journal<S>, IOJournal<S> {
     val file: File
 
     override val reader: Reader
-        get() = PropertyHolder.get(this, "reader") {
+        get() = memimg.util.PropertyHolder(this, "reader") {
             logger.debug("Creating reader")
             file.reader(StandardCharsets.UTF_8)
         }
 
     override val writer: Writer
-        get() = PropertyHolder.get(this, "writer") {
+        get() = PropertyHolder(this, "writer") {
             logger.debug("Creating writer")
             FileWriter(file, StandardCharsets.UTF_8, true)
         }
